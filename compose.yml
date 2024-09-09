@@ -47,6 +47,9 @@ services:
       TELEGRAM_API_HASH: ${TELEGRAM_API_HASH}
     volumes:
       - telegram-bot-api-data:/var/lib/telegram-bot-api
+    deploy:
+      mode: replicated
+      replicas: 3
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.api.rule=Host(`${HOSTNAME}`) && PathPrefix(`/`)"
