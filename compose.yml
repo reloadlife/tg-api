@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   watchtower:
     image: containrrr/watchtower
@@ -40,7 +38,7 @@ services:
       - "traefik.http.middlewares.token-filter.replacepathregex.replacement=/$$1:<hidden-token>/$$2"
 
   api:
-    image: ghcr.io/reloadlife/tg-api:prod
+    image: ghcr.io/reloadlife/tg-api
     restart: always
     environment:
       TELEGRAM_API_ID: ${TELEGRAM_API_ID}
@@ -56,16 +54,19 @@ services:
       - "traefik.http.routers.api.entrypoints=websecure"
       - "traefik.http.routers.api.tls=true"
       - "traefik.http.routers.api.tls.certresolver=myresolver"
-      - "traefik.http.services.api.loadbalancer.server.port=8081"
+      - "traefik.http.routers.api.service=api-service"
+      - "traefik.http.services.api-service.loadbalancer.server.port=8081"
       - "traefik.http.routers.api.middlewares=token-filter@docker"
-      - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/file"
+      
       - "traefik.http.routers.api-files.rule=Host(`${HOSTNAME}`) && PathPrefix(`/file`)"
       - "traefik.http.routers.api-files.entrypoints=websecure"
       - "traefik.http.routers.api-files.tls=true"
       - "traefik.http.routers.api-files.tls.certresolver=myresolver"
       - "traefik.http.routers.api-files.middlewares=api-strip@docker"
-      - "traefik.http.routers.api-files.service=api-files"
-      - "traefik.http.services.api-files.loadbalancer.server.port=8081"
+      - "traefik.http.routers.api-files.service=api-files-service"
+      - "traefik.http.services.api-files-service.loadbalancer.server.port=8081"
+      
+      - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/file"
 
 volumes:
   letsencrypt:
