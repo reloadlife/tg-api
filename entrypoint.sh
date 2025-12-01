@@ -4,7 +4,9 @@ set -e
 USERNAME=telegram-bot-api
 GROUPNAME=telegram-bot-api
 
-chown ${USERNAME}:${GROUPNAME} "${TELEGRAM_WORK_DIR}"
+if [ "$(id -u)" = "0" ]; then
+    chown ${USERNAME}:${GROUPNAME} "${TELEGRAM_WORK_DIR}"
+fi
 
 if [ -n "${1}" ]; then
   exec "${*}"
