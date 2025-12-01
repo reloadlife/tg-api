@@ -1,0 +1,131 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tg-api
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tg-api-secret
+  namespace: tg-api
+type: Opaque
+stringData:
+  apiId: "YOUR_TELEGRAM_API_ID"
+  apiHash: "YOUR_TELEGRAM_API_HASH"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tg-api-data
+  namespace: tg-api
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tg-api
+  namespace: tg-api
+  labels:
+    app: tg-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tg-api
+  template:
+    metadata:
+      labels:
+        app: tg-api
+    spec:
+      securityContext:
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+      containers:
+        - name: tg-api
+          image: ghcr.io/reloadlife/tg-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+            - name: stats
+              containerPort: 8082
+              protocol: TCP
+          env:
+            - name: TELEGRAM_API_ID
+              valueFrom:
+                secretKeyRef:
+                  name: tg-api-secret
+                  key: apiId
+            - name: TELEGRAM_API_HASH
+              valueFrom:
+                secretKeyRef:
+                  name: tg-api-secret
+                  key: apiHash
+          volumeMounts:
+            - name: telegram-data
+              mountPath: /var/lib/telegram-bot-api
+            - name: telegram-temp
+              mountPath: /tmp/telegram-bot-api
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+            requests:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: telegram-data
+          persistentVolumeClaim:
+            claimName: tg-api-data
+        - name: telegram-temp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tg-api
+  namespace: tg-api
+  labels:
+    app: tg-api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 8082
+      targetPort: stats
+      protocol: TCP
+      name: stats
+  selector:
+    app: tg-api

@@ -1,0 +1,13 @@
+apiVersion: v2
+name: tg-api
+description: A Helm chart for Telegram Bot API
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - telegram
+  - bot
+  - api
+maintainers:
+  - name: tg-api
+home: https://github.com/reloadlife/tg-api

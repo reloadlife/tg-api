@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tg-api
+  namespace: tg-api
+  labels:
+    app: tg-api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 8082
+      targetPort: stats
+      protocol: TCP
+      name: stats
+  selector:
+    app: tg-api

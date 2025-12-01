@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tg-api
+  namespace: tg-api
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    # For /file path, strip the /file prefix
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - tg-api.example.com
+      secretName: tg-api-tls
+  rules:
+    - host: tg-api.example.com
+      http:
+        paths:
+          # File endpoint with path rewrite (strips /file prefix)
+          - path: /file(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: tg-api
+                port:
+                  number: 80
+          # Main API endpoint (catch-all)
+          - path: /(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: tg-api
+                port:
+                  number: 80

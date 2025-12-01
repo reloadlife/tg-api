@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tg-api.fullname" . }}
+  labels:
+    {{- include "tg-api.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+      {{- if eq .Values.service.port 80 }}
+      # Port 80 allows accessing service without specifying port: tg-api.tg-api.svc.cluster.local
+      {{- end }}
+    - port: {{ .Values.service.statsPort }}
+      targetPort: stats
+      protocol: TCP
+      name: stats
+  selector:
+    {{- include "tg-api.selectorLabels" . | nindent 4 }}
+

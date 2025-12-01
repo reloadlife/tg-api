@@ -1,0 +1,6 @@
+# Ignore secret files with actual values
+# Keep secret.yaml as template, but don't commit actual secrets
+secret.yaml
+*.secret.yaml
+secrets/
+
