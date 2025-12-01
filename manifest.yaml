@@ -13,6 +13,7 @@ type: Opaque
 stringData:
   apiId: "YOUR_TELEGRAM_API_ID"
   apiHash: "YOUR_TELEGRAM_API_HASH"
+  # proxy: ""
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -69,6 +70,28 @@ spec:
                 secretKeyRef:
                   name: tg-api-secret
                   key: apiHash
+            - name: TELEGRAM_STAT
+              value: "1"
+            - name: TELEGRAM_VERBOSITY
+              value: "1"
+            - name: TELEGRAM_MAX_CONNECTIONS
+              value: "100000"
+            - name: TELEGRAM_MAX_WEBHOOK_CONNECTIONS
+              value: "40"
+            - name: TELEGRAM_PROXY
+              valueFrom:
+                secretKeyRef:
+                  name: tg-api-secret
+                  key: proxy
+                  optional: true
+            - name: TELEGRAM_LOG_FILE
+              value: ""
+            - name: TELEGRAM_FILTER
+              value: ""
+            - name: TELEGRAM_LOCAL
+              value: ""
+            - name: TELEGRAM_HTTP_IP_ADDRESS
+              value: ""
           volumeMounts:
             - name: telegram-data
               mountPath: /var/lib/telegram-bot-api
