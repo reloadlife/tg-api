@@ -44,8 +44,6 @@ spec:
       labels:
         app: tg-api
     spec:
-      securityContext:
-        fsGroup: 101
       containers:
         - name: tg-api
           image: ghcr.io/reloadlife/tg-api:latest
@@ -96,16 +94,14 @@ spec:
             - name: telegram-temp
               mountPath: /tmp/telegram-bot-api
           livenessProbe:
-            httpGet:
-              path: /
+            tcpSocket:
               port: http
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
-            httpGet:
-              path: /
+            tcpSocket:
               port: http
             initialDelaySeconds: 10
             periodSeconds: 5
@@ -118,14 +114,6 @@ spec:
             requests:
               cpu: 500m
               memory: 512Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              add:
-                - SETUID
-                - SETGID
-              drop:
-                - ALL
       volumes:
         - name: telegram-data
           persistentVolumeClaim:
