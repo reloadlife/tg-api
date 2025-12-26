@@ -13,7 +13,7 @@ type: Opaque
 stringData:
   apiId: "YOUR_TELEGRAM_API_ID"
   apiHash: "YOUR_TELEGRAM_API_HASH"
-  # proxy: ""
+  # proxy: "socks5://user:pass@host:port"  # optional
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -26,6 +26,34 @@ spec:
   resources:
     requests:
       storage: 10Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tg-front-nginx
+  namespace: tg-api
+data:
+  default.conf: |
+    server {
+      listen 80;
+
+      # serve downloaded files from PVC
+      location /files/ {
+        alias /data/;
+        autoindex off;
+        add_header X-Content-Type-Options nosniff;
+      }
+
+      # proxy everything else to Telegram Bot API
+      location / {
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+        proxy_pass http://127.0.0.1:8081;
+      }
+    }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -45,11 +73,12 @@ spec:
         app: tg-api
     spec:
       containers:
+        # Telegram Bot API (local mode, writes into PVC)
         - name: tg-api
           image: ghcr.io/reloadlife/tg-api:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - name: http
+            - name: api
               containerPort: 8081
               protocol: TCP
             - name: stats
@@ -66,6 +95,12 @@ spec:
                 secretKeyRef:
                   name: tg-api-secret
                   key: apiHash
+            - name: TELEGRAM_PROXY
+              valueFrom:
+                secretKeyRef:
+                  name: tg-api-secret
+                  key: proxy
+                  optional: true
             - name: TELEGRAM_STAT
               value: "1"
             - name: TELEGRAM_VERBOSITY
@@ -74,39 +109,31 @@ spec:
               value: "100000"
             - name: TELEGRAM_MAX_WEBHOOK_CONNECTIONS
               value: "40"
-            - name: TELEGRAM_PROXY
-              valueFrom:
-                secretKeyRef:
-                  name: tg-api-secret
-                  key: proxy
-                  optional: true
             - name: TELEGRAM_LOG_FILE
               value: ""
             - name: TELEGRAM_FILTER
               value: ""
             - name: TELEGRAM_LOCAL
-              value: ""
-            - name: TELEGRAM_HTTP_IP_ADDRESS
-              value: ""
+              value: "1"
+            - name: TELEGRAM_WORK_DIR
+              value: "/var/lib/telegram-bot-api"
+            - name: TELEGRAM_TEMP_DIR
+              value: "/var/lib/telegram-bot-api/tmp"
           volumeMounts:
             - name: telegram-data
               mountPath: /var/lib/telegram-bot-api
-            - name: telegram-temp
-              mountPath: /tmp/telegram-bot-api
           livenessProbe:
             tcpSocket:
-              port: http
+              port: api
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 3
           readinessProbe:
             tcpSocket:
-              port: http
+              port: api
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3
-            failureThreshold: 3
           resources:
             limits:
               cpu: 2000m
@@ -114,12 +141,50 @@ spec:
             requests:
               cpu: 500m
               memory: 512Mi
+
+        # Front proxy + file server (single port 80)
+        - name: tg-front
+          image: nginx:alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          volumeMounts:
+            - name: telegram-data
+              mountPath: /data
+              readOnly: true
+            - name: front-nginx-conf
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+          resources:
+            limits:
+              cpu: 250m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+
       volumes:
         - name: telegram-data
           persistentVolumeClaim:
             claimName: tg-api-data
-        - name: telegram-temp
-          emptyDir: {}
+        - name: front-nginx-conf
+          configMap:
+            name: tg-front-nginx
+
 ---
 apiVersion: v1
 kind: Service
@@ -130,14 +195,14 @@ metadata:
     app: tg-api
 spec:
   type: ClusterIP
-  ports:
-    - port: 80
-      targetPort: http
-      protocol: TCP
-      name: http
-    - port: 8082
-      targetPort: stats
-      protocol: TCP
-      name: stats
   selector:
     app: tg-api
+  ports:
+    # One port 80 for BOTH features via path routing
+    - name: http
+      port: 80
+      targetPort: http
+    # optional stats port (direct to tg-api container)
+    - name: stats
+      port: 8082
+      targetPort: stats
